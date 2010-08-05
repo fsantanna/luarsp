@@ -1,0 +1,17 @@
+Reactive Server Pages (RSP) bring some concepts of reactive languages to the 
+realm of server-side web development.
+
+Traditional server-side web application are implemented as a collection of 
+related pages that access the same shared state (i.e. session variables). Once 
+the web server receives a page request from the client, it executes the dynamic 
+page reading and writing to session variables, and yields a fresh page to the 
+client. The request is handled all at once, and no state (besides the client's 
+session) remains in the server. Hence, there is no notion of sequential 
+execution in a web application, whose life cycle is purely associated with the 
+active client session.
+
+RSP rearrange the way web applications are developed. A web application 
+conceptually becomes a single file that executes from its first to its last 
+line. The programmer can use structured programming with loops and recursive 
+calls. RSP are based on LuaGravity, which extends the Lua language with 
+reactive data and control primitives.
