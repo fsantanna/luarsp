@@ -15,23 +15,92 @@ options:
 [cart]: http://www.lua.inf.puc-rio.br/rsp/cart/
 
 The whole structure of the application resides in the file `init.lua` in the 
-`cart` directory shown below.
-The application requires auxiliary files to implement each of the menu options 
-(lines 5-7).
+`cart/` directory shown below.
+The external file `catalog.lua` is loaded into the globally accessible 
+`CATALOG` (line 5).
+The application also requires auxiliary files to implement each of the menu 
+options (lines 26-28).
 
-The call to `meta.dofile` makes the loaded files to follow the semantics of Lua 
-modules, and at the same time, the [LuaGravity meta language][meta], where 
-variables starting with underscores behave reactively.
+<small>
+*(The call to [`meta.dofile`][dofile] makes the loaded files to follow the 
+semantics of Lua modules, and at the same time, the [LuaGravity meta 
+language][meta], where variables starting with underscores behave reactively.)*
+</small>
 
-[meta]: http://www.lua.inf.puc-rio.br/~francisco/luagravity/meta.html
+[meta]:   http://www.lua.inf.puc-rio.br/~francisco/luagravity/meta.html
+[dofile]: http://www.lua.inf.puc-rio.br/~francisco/luagravity/meta.html#api_dofile
+
+The `pub` interface with the client (lines 7-12) defines the table `qtt` to 
+hold the quantity of each item in cart, the current visible page `_page`, and 
+the client info `_name` and `_addr`.
+Lines 13-15 set the initial quantities to zero.
+As the `pub` table contains unsafe data provided by the client, lines 17-32 
+deal with validating and defining private safer versions of them: `QTT`, 
+`_NAME`, `_ADDR`, and `_page`.
 
 The `_html` variable holds the whole interface of the application (lines 
-11-31), and only changes after receiving the event `quit` (lines 33-35).
-However,  `_html` depends on the variable `_page` (line 25), which is initially 
-set to `buy._html` (line 9).
-When the user selects one of the options in the menu (lines 20-22), the `_page` 
-variable is set to the proper subpage<sup>[1](#1)</sup>, and `_html` reacts to 
-this change.
+34-53), and only changes after receiving the event `quit` (lines 55-57).
+However,  `_html` depends on the variable `_page` (line 48), which is initially 
+set to `buy._html` (lines 9 and 30).
+When the user selects one of the options in the menu (lines 43-45), the `_page` 
+variable is set to the proper subpage, and `_html` reacts to this change.
+
+     1:  local meta = require 'luagravity.meta'
+     2:
+     3:  local _assert, _tonumber, _tostring = L(assert), L(tonumber), L(tostring)
+     4:
+     5:  CATALOG = dofile 'catalog.lua'
+     6:
+     7:  pub = meta.new {
+     8:      qtt   = meta.new{},
+     9:      _page = 'buy',
+    10:      _name  = '',
+    11:      _addr  = '',
+    12:  }
+    13:  for k, t in pairs(CATALOG) do
+    14:      pub.qtt['_'..k] = 0
+    15:  end
+    16:
+    17:  QTT = meta.new{}
+    18:  for k, v in meta.pairs(pub.qtt) do
+    20:      QTT[k] = _assert(_tonumber(v))
+    21:  end
+    22:
+    23:  _NAME = _assert(_tostring(pub._name))
+    24:  _ADDR = _assert(_tostring(pub._addr))
+    25:
+    26:  buy    = meta.dofile('buy.lua',    _M)
+    27:  client = meta.dofile('client.lua', _M)
+    28:  status = meta.dofile('status.lua', _M)
+    29:
+    30:  _page = OR( AND(EQ(pub._page, 'buy'), buy._html),
+    31:              OR( AND(EQ(pub._page, 'client'), client._html),
+    32:                  OR( AND( EQ(pub._page, 'status'), status._html), 'invalid page' )))
+    33:
+    34:  _html = [[
+    35:  <html>
+    36:  <body>
+    37:  <center>
+    38:  <table width='80%' border='0' cellspacing='0'>
+    39:  <tr>
+    40:      <td width='20%' valign='top'>
+    41:      <ul>
+    42:          <b>Menu:</b>
+    43:          <li><a href="nop?_page=buy">   Buy   </a>
+    44:          <li><a href="nop?_page=client">Client</a>
+    45:          <li><a href="nop?_page=status">Status</a>
+    46:          <li><a href="quit">            Quit  </a>
+    47:      </ul>            </td>
+    48:      <td width='80%' valign='top'>]].._page..[[</td>
+    49:  </tr>    </table>
+    50:  </center>
+    51:  </body>
+    52:</html>
+    53:]]
+    54:
+    55:await 'quit'
+    56:
+    57:_html = [[Goodbye!]]
 
 In this application, we expect that each subpage provides an `_html` variable 
 with its contents.
@@ -42,50 +111,6 @@ files where their globals are visible to the rest of the application.
 However, LuaGravity does not support local reactive variables, so we use two 
 underscores on their names to suggest they are locals.
 
-<a name="1"/>
-<small>
-<sup>1</sup> *Note the difference between `_page=buy._html` and 
-`_page=!buy._html`.
-The first is equivalent to the Lua code `_page = "buy._html"`, the second to 
-`_page = buy._html`.*
-</small>
-
-     1:  -- contents of cart.lua
-     2:
-     3:  local meta = require 'luagravity.meta'
-     4:
-     5:  buy    = meta.dofile 'buy.lua'
-     6:  client = meta.dofile 'client.lua'
-     7:  status = meta.dofile 'status.lua'
-     8:
-     9:  _page = buy._html
-    10:
-    11:  _html = [[
-    12:  <html>
-    13:  <body>
-    14:  <center>
-    15:  <table width='80%' border='0' cellspacing='0'>
-    16:  <tr>
-    17:      <td width='20%' valign='top'>
-    18:      <ul>
-    19:          <b>Menu:</b>
-    20:          <li><a href="nop?_page=!buy._html">   Buy   </a>
-    21:          <li><a href="nop?_page=!client._html">Form  </a>
-    22:          <li><a href="nop?_page=!status._html">Status</a>
-    23:          <li><a href="quit">                   Quit  </a>
-    24:      </ul>            </td>
-    25:      <td width='80%' valign='top'>]].._page..[[</td>
-    26:  </tr>
-    27:  </table>
-    28:  </center>
-    29:  </body>
-    30:  </html>
-    31:  ]]
-    32:
-    33:  await 'quit'
-    34:
-    35:  _html = [[Goodbye!]]
-
 <a name="status"/>
 
 Status Page
@@ -94,19 +119,24 @@ Status Page
 The simplest subpage shows the *Status* of the current shopping cart, and only 
 sets its `_html` to depend on data in the other pages:
 
-     1:  _html = [[
-     2:  <ul>
-     3:      <li>Personal data: ]]..OR(AND(client._valid, 'OK!'), 'PENDING...')..[[
-     4:      <li>Shopping Cart: ]]..buy._tot_items..[[ items = $ ]]..buy._tot_cost..[[
-     5:  </ul>
-     6:  ]]
+     1:  __valid = AND( NEQ(_NAME, ''), NEQ(_ADDR, '') )
+     2:
+     3:  _html = [[
+     4:  <ul>
+     5:      <li>Personal data: ]]..OR(AND(__valid, 'OK!'), 'PENDING...')..[[
+     6:      <li>Shopping Cart: ]]..buy._tot_items..[[ items = $ ]]..buy._tot_cost..[[
+     7:  </ul>
+     8:  ]]
 
-The boolean variable `client._valid` is defined in the module [client](#client) 
-and tells whether the client has filled out the form correctly.
-Here, we output *OK!* or *PENDING...* depending on that.
-The expression `OR(AND(client._valid,'OK'), 'PENDING...')` is the reactive 
-version for `client._valid and 'OK' or 'PENDING...', as these operators cannot 
-be redefined in Lua.
+The boolean variable `__valid` tells whether the client has filled out the form 
+correctly.
+In line 5, we output *OK!* or *PENDING...* depending on that value.
+
+<small>
+*(The expression `OR(AND(__valid,'OK'), 'PENDING...')` is the reactive version 
+for `__valid and 'OK' or 'PENDING...', as these operators cannot be redefined 
+in Lua.)*
+</small>
 
 The variables `buy._tot_items` and `buy._tot_cost` are defined in the module 
 [buy](#buy), and keep how many items and total cost are in the cart.
@@ -122,133 +152,126 @@ Client Page
 The subpage with the *Client* form defines four reactive variables to be used 
 by other pages:
 As usual, the variable `_html` holds the contents of the page with the form.
-The variables `_name` and `_addr` hold the information supplied by the client 
-in the form.
-The variable `_valid` holds whether the information supplied by the client is 
-correct (and is used by the *Status* page as already shown).
+The variables `_NAME` and `_ADDR` hold the validated information supplied by 
+the client in the form.
 
 Form validation is a recurrent pattern in Web pages, and not always easy to 
 handle.
 In this example, we use a technique possible with reactive programming to cope 
 with that.
-In the end of the `_html` definition (line 14), we concatenate the reactive 
-variable `__html_errors` (which is initially blank, line 5).
+In the end of the `_html` definition (line 11), we concatenate the reactive 
+variable `__html_errors` (which is initially blank, line 1).
 Whenever we set this variable with a string representing an error, the `_html` 
 is updated and shows this error to the client.
 
 In order to validate the form input, we [`spawn`][spawn] a concurrent reactor 
-(lines 18-32) that waits for the event `'client_submit'`.
-This event is triggered whenever the form is submitted (line 12), awaking the 
-spawned reactor.
-The form is then validated, setting both the `__html_errors` and `_valid` 
-variables accordingly.
+(lines 15-26) that waits for the event `'client_submit'`.
+This event is triggered whenever the form is submitted (line 9), awaking the 
+spawned reactor (line 17).
+The form is then validated and sets `__html_errors` accordingly.
 The loop inside the reactor is restarted, making it wait for the next form 
 submission.
 
 [spawn]: http://www.lua.inf.puc-rio.br/~francisco/luagravity/#section_spawn
 
-     1:  _name  = ''
-     2:  _addr  = ''
-     3:  _valid = false
-     4:
-     5:  __html_errors = ''
-     6:  _html = [[
-     7:  <p>Please, enter your personal data:
-     8:  <p><form action='client_submit'>
-     9:  <table>
-    10:  <tr><td>Name:    <td><input name='client._name' type='text' 1:  value=']].._name..[['/></tr>
-    11:  <tr><td>Address: <td><input name='client._addr' type='text' 1:  value=']].._addr..[['/></tr>
-    12:  <tr><th colspan='2'><input value='Ok!' type='submit'/></tr>
-    13:  </table>
-    14:  <p><font color='red'>]]..__html_errors..[[</font>
-    15:  </form>
-    16:  ]]
-    17:
-    18:  spawn(function()
-    19:     while true do
-    20:         await 'client_submit'
-    21:         __html_errors = ''
-    22:         _valid = true
-    23:         if _name() == '' then
-    24:             _valid = false
-    25:             __html_errors = __html_errors() .. '<br>Field name is 1: mandatory!'
-    26:         end
-    27:         if _addr() == '' then
-    28:             _valid = false
-    29:             __html_errors = __html_errors() .. '<br>Field address is 1: mandatory.'
-    30:         end
-    31:     end
-    32:  end)
+     1:  __html_errors = ''
+     2:
+     3:  _html = [[
+     4:  <p>Please, enter your personal data:
+     5:  <p><form action='client_submit'>
+     6:  <table>
+     7:  <tr><td>Name:    <td><input name='_name' type='text' value=']].._NAME..[['/></tr>
+     8:  <tr><td>Address: <td><input name='_addr' type='text' value=']].._ADDR..[['/></tr>
+     9:  <tr><th colspan='2'><input value='Ok!' type='submit'/></tr>
+    10:  </table>
+    11:  <p><font color='red'>]]..__html_errors..[[</font>
+    12:  </form>
+    13:  ]]
+    14
+    15:  spawn(function()
+    16:      while true do
+    17:          await 'client_submit'
+    18:          __html_errors = ''
+    19:          if _NAME() == '' then
+    20:              __html_errors = __html_errors() .. '<br>Field name is mandatory!'
+    21:          end
+    22:          if _ADDR() == '' then
+    23:              __html_errors = __html_errors() .. '<br>Field address is mandatory.'
+    24:          end
+    25:      end
+    26:  end)
 
 <a name="buy"/>
 
 Buy Page
 --------
 
-This page shows a table with the items available to buy (lines 3-6).
-The module exports four variables to the application: `_html`, `catalog`, 
-`_tot_items`, `_tot_cost`.
+This page shows a table with the available items in the `CATALOG` defined in 
+the main file.
+The module exports three variables to the application: `_html`, `_tot_items`, 
+and `_tot_cost`.
 
 This page's `_html` uses the variable `__items` (line 23), which is built in 
-the end of the file (lines 36-49) by iterating over the catalog and appending 
+the end of the file (lines 31-46) by iterating over the catalog and appending 
 each item to that.
 Note that we could not just do `__items = __items .. [[...]]` as that would 
-create a [dependency cycle][meta_cycle], hence the use of `__items.src`.
+create a [dependency cycle][meta_cycle], hence the use of `src` in lines 35-37.
 
 [meta_cycle]: http://www.lua.inf.puc-rio.br/~francisco/luagravity/meta.html#section_cycles
 
-Each item in the catalog has its `_qtt` reactive variable that can be changed 
-by the user in the form (line 45).
-Both `_tot_items` and `_tot_cost` depend on them (lines 38-39).
+Each item in the catalog has its associated quantity reactive variable in the 
+table `pub.qtt` (defined in the main file), which can be changed by the user in 
+the form (line 42, note that `pub` is omitted).
+Furthermore, the main file also defines the validated table `QTT`, which is 
+accessed in line 34, and both `_tot_items` and `_tot_cost` depend on (lines 
+35-36).
 Also remember that the `status._html` depends on `_tot_items` and `_tot_cost`.
-Hence, a change in any `_qtt` is propagated up to `status._html`.
+Hence, a change in any `_qtt` is propagated up to `status._html`, and possibly 
+the main `_html`.
 
-     1: local meta = require 'luagravity.meta'
+     1:  local meta = require 'luagravity.meta'
      2:
-     3: catalog = {
-     4:     ball = meta.new{ title='Ball', price=50,  description='A nice Ball', _qtt=0 },
-     5:     tv   = meta.new{ title='TV',   price=450, description='A nice TV',   _qtt=0 },
-     6: }
+     3:  _tot_items = 0
+     4:  _tot_cost  = 0
+     5:
+     6:  __items = ''
      7:
-     8: _tot_items = 0
-     9: _tot_cost  = 0
-    10:
-    11: __items = ''
-    12:
-    13: _html = [[
-    14: <form>
-    15: <table width='80%' border=1 cellspacing=0>
-    16:     <tr>
-    17:         <th>Item
-    18:         <th>Description
-    19:         <th>Price
-    20:         <th>#
-    21:         <th>Total
-    22:     </tr>
-    23: ]] .. __items .. [[
-    24:     <tr>
-    25:         <td><br>
-    26:         <td><br>
-    27:         <td><br>
-    28:         <td align='right'>]].._tot_items..[[
-    29:         <td align='right'>]].._tot_cost..[[
-    30:     </tr>
-    31:     <tr><th colspan=5><input type='submit' value='ok'/></tr>
-    32: </table>
-    33: </form>
-    34: ]]
-    35:
-    36: for k, t in pairs(catalog)
-    37: do
-    38:     _tot_items = _tot_items.src + t._qtt
-    39:     _tot_cost = _tot_cost.src + t._qtt*t.price
-    40:     __items = __items.src .. [[
-    41:     <tr>
-    42:         <td>]]..t.title..[[
-    43:         <td>]]..t.description..[[
-    44:         <td>]]..t.price..[[
-    45:         <td align='right'><input size='2' name='buy.catalog.]]..k..[[._qtt' value=']]..t._qtt..[['>
-    46:         <td align='right'>]]..t._qtt*t.price..[[
-    47:     </tr>
-    48:     ]]
-    49: end
+     8:  _html = [[
+     9:  <form>
+    10:  <table width='80%' border=1 cellspacing=0>
+    11:      <tr>
+    12:          <th>Item
+    13:          <th>Description
+    14:          <th>Price
+    15:          <th>#
+    16:          <th>Total
+    17:      </tr>
+    18:  ]] .. __items .. [[
+    19:      <tr>
+    20:          <td><br>
+    21:          <td><br>
+    22:          <td><br>
+    23:          <td align='right'>]].._tot_items..[[
+    24:          <td align='right'>]].._tot_cost..[[
+    25:      </tr>
+    26:      <tr><th colspan=5><input type='submit' value='ok'/></tr>
+    27:  </table>
+    28:  </form>
+    29:  ]]
+    30:
+    31:  for k, t in pairs(CATALOG)
+    32:  do
+    33:      k = '_'..k
+    34:      local _qtt = QTT[k]
+    35:      _tot_items = _tot_items.src + _qtt
+    36:      _tot_cost = _tot_cost.src + _qtt*t.price
+    37:      __items = __items.src .. [[
+    38:      <tr>
+    39:          <td>]]..t.title..[[
+    40:          <td>]]..t.description..[[
+    41:          <td align='right'>]]..t.price..[[
+    42:          <td align='right'><input size='2' name='qtt.]] ..k.. [[' value=']] .._qtt.. [['>
+    43:          <td align='right'>]].._qtt*t.price..[[
+    44:      </tr>
+    45:      ]]
+    46:  end

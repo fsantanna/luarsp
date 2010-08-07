@@ -1,10 +1,5 @@
 local meta = require 'luagravity.meta'
 
-catalog = {
-    ball = meta.new{ title='Ball', price=50,  description='A nice Ball', _qtt=0 },
-    tv   = meta.new{ title='TV',   price=450, description='A nice TV',   _qtt=0 },
-}
-
 _tot_items = 0
 _tot_cost  = 0
 
@@ -33,17 +28,19 @@ _html = [[
 </form>
 ]]
 
-for k, t in pairs(catalog)
+for k, t in pairs(CATALOG)
 do
-    _tot_items = _tot_items.src + t._qtt
-    _tot_cost = _tot_cost.src + t._qtt*t.price
+    k = '_'..k
+    local _qtt = QTT[k]
+    _tot_items = _tot_items.src + _qtt
+    _tot_cost = _tot_cost.src + _qtt*t.price
     __items = __items.src .. [[
     <tr>
         <td>]]..t.title..[[
         <td>]]..t.description..[[
-        <td>]]..t.price..[[
-        <td align='right'><input size='2' name='buy.catalog.]]..k..[[._qtt' value=']]..t._qtt..[['>
-        <td align='right'>]]..t._qtt*t.price..[[
+        <td align='right'>]]..t.price..[[
+        <td align='right'><input size='2' name='qtt.]] ..k.. [[' value=']] .._qtt.. [['>
+        <td align='right'>]].._qtt*t.price..[[
     </tr>
     ]]
 end

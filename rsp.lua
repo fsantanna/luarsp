@@ -1,16 +1,21 @@
 #!/usr/bin/env wsapi.cgi
 
+-- TODO:
+-- * session expire
+
 local gvt   = require 'luagravity'
 local meta  = require 'luagravity.meta'
 
-local lfs = require 'lfs'
+local lfs    = require 'lfs'
+local digest = require('crypto').hmac.digest
 
 local req = require 'wsapi.request'
 local res = require 'wsapi.response'
 
+math.randomseed(os.time())
+
 local headers = { ['Content-type'] = 'text/html' }
 
-local ID = 1
 local SESSIONS = {}
 
 local s_match = string.match
@@ -28,17 +33,17 @@ return function (env)
 
     local S
     local name, event = string.match(req.path_info, '/([^/]+)/?(.*)')
-    local id = tonumber(req.cookies[name] or 0)
+    local id = req.cookies[name]
+    local host = assert(env.REMOTE_ADDR)
 
     -- TODO: (not ok) headers['Content-Location'] = '/rsp/'..app_name..'/'
     local res = res.new(200, headers)
-    if SESSIONS[id] then
+    if id and SESSIONS[id] then
         S = SESSIONS[id]
-        assert(gvt.is(S.app))
         assert(S.name == name)
-        -- TODO: assert(_host == app_name)
+        assert(S.host == host)
     else
-        id = ID ; ID = ID + 1
+        id = digest("sha1", math.random(), os.time())
         local app = loadfile(name..'.lua')
         local dir
         if not app then
@@ -48,7 +53,7 @@ return function (env)
         app = meta.apply(app)
         local app_env = getfenv(app)
         app = gvt.create(app, {name=name})
-        S = { app=app, env=app_env, dir=dir, name=name, host=TODO_HOST }
+        S = { app=app, env=app_env, dir=dir, name=name, host=host }
         SESSIONS[id] = S
         res:set_cookie(name, id)
         if dir then lfs.chdir(dir) end
@@ -58,10 +63,12 @@ return function (env)
 
     -- DATA
     -- TODO: dangerous?
+    local pub = S.env.pub or {}
     for var, v in pairs(req.GET) do
-        local s1, s2 = acc(S.env, var)
+        local s1, s2 = acc(pub, var)
+        assert(s1[s2], 'attempt to assign to undefined variable')
         if string.sub(v, 1, 1) == '!' then
-            local v1, v2 = acc(S.env, string.sub(v, 2))
+            local v1, v2 = acc(pub, string.sub(v, 2))
             s1[s2] = v1[v2]
         else
             s1[s2] = v
